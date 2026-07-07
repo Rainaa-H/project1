@@ -1,0 +1,24 @@
+{
+  "name": "robovac-market-intel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "server": "node server/index.js",
+    "test": "node test/parsers.test.js && node test/reportEngine.test.js && node test/llmClient.test.js && node test/reportFormatter.test.js && node test/staticAnalyze.test.js && node test/sampleData.test.js && node test/amazonReviewsBuilder.test.js && node test/api.test.js",
+    "build:data": "node scripts/buildRobovacDataset.mjs",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^5.0.0",
+    "vite": "^7.0.0",
+    "typescript": "^5.8.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "lucide-react": "^0.468.0",
+    "express": "^4.19.0",
+    "cors": "^2.8.5"
+  }
+}
