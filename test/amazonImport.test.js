@@ -140,3 +140,24 @@ test("importAmazonDataset can import products by ASIN and use listing evidence w
   assert.match(dataset.warnings[0], /No Amazon reviews returned/);
   assert.deepEqual(calls[0], ["asin", { asin: "B0C7VLHMQR", country: "US" }]);
 });
+
+test("importAmazonDataset accepts Chinese punctuation between ASINs", async () => {
+  const calls = [];
+  const client = {
+    async asin(request) {
+      calls.push(request.asin);
+      return { result: [{ title: `Product ${request.asin}`, asin: request.asin, feature_bullets: ["LiDAR"] }] };
+    },
+    async reviews() {
+      return { result: [] };
+    }
+  };
+
+  const dataset = await importAmazonDataset(
+    { asins: "B0DFZ2HMY8?B0GD1XTMFN、B0G5YDVR99", maxProducts: 10 },
+    { client }
+  );
+
+  assert.deepEqual(calls, ["B0DFZ2HMY8", "B0GD1XTMFN", "B0G5YDVR99"]);
+  assert.deepEqual(dataset.products.map((product) => product.asin), calls);
+});

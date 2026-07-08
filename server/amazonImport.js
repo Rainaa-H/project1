@@ -232,9 +232,11 @@ function firstString(...values) {
 }
 
 function parseAsins(value) {
-  if (Array.isArray(value)) return value.map(String).map((item) => item.trim().toUpperCase()).filter(Boolean);
-  return String(value || "")
-    .split(/[\s,;]+/)
+  const text = Array.isArray(value) ? value.join(" ") : String(value || "");
+  const matches = text.toUpperCase().match(/[A-Z0-9]{10}/g);
+  if (matches?.length) return [...new Set(matches)];
+  return text
+    .split(/[\s,;，、；]+/)
     .map((item) => item.trim().toUpperCase())
     .filter(Boolean);
 }

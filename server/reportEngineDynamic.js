@@ -163,6 +163,10 @@ function buildPositioningAdvice(scenario, products, reviews, negativeThemes, pos
     advice.push(`围绕“${profile.featureAngles.slice(0, 3).join(" + ")}”建立卖点组合，避免所有 ASIN 都复用同一套泛化场景话术。`);
   }
 
+  if (profile.productSpecificAngles.length) {
+    advice.push(`该 ASIN 的独特点是“${profile.productSpecificAngles.slice(0, 3).join("、")}”，定位应围绕这些证据展开，而不是只落到通用宠物毛发场景。`);
+  }
+
   if (profile.pricePosition) {
     advice.push(`${profile.pricePosition}，Listing 信息层级应先解释用户为什么为这些能力付费，再展示参数。`);
   }
@@ -200,6 +204,30 @@ function buildGtmActions(scenario, products, reviews, negativeThemes, positiveTh
     actions.push("补充小户型摆放图、夜间运行噪音说明和老人/租房用户的一键清扫路径。");
   }
 
+  if (profile.productSpecificAngles.includes("Sonic mopping")) {
+    actions.push("为 sonic mopping 单独做硬地板污渍测试，和普通湿拖/只吸尘机型区分开。");
+  }
+
+  if (profile.productSpecificAngles.includes("HEPA/过敏原过滤")) {
+    actions.push("在 A+ 或 FAQ 中解释 HEPA、基站密封和宠物毛发场景的关系，面向过敏/宠物家庭强化信任。");
+  }
+
+  if (profile.productSpecificAngles.includes("超薄机身")) {
+    actions.push("补充沙发底、床底、柜底通过性素材，把超薄机身从参数变成小户型可感知利益。");
+  }
+
+  if (profile.productSpecificAngles.includes("边角扩展刷")) {
+    actions.push("拍摄墙边、桌腿、宠物碗周边的边角清洁对比，突出扩展边刷不是普通侧刷。");
+  }
+
+  if (profile.productSpecificAngles.includes("10000Pa 吸力")) {
+    actions.push("把 10000Pa 吸力拆成地毯深处灰尘、猫砂、颗粒物三组测试，避免只堆最大 Pa 数字。");
+  }
+
+  if (profile.productSpecificAngles.includes("仅吸尘不拖地")) {
+    actions.push("Listing 明确写清 vacuum only/no mopping，避免扫拖一体预期错误，并把预算集中在吸力和防缠绕证明上。");
+  }
+
   if (negativeThemes.length) {
     actions.push(`在 FAQ 中优先回应 ${negativeThemes.map((theme) => theme.label).slice(0, 2).join("、")}，用保养周期、耗材成本或售后流程降低转化阻力。`);
   }
@@ -227,6 +255,7 @@ function buildMarketProfile(products, reviews) {
     topBrands: [...new Set(products.map((product) => product.brand).filter(Boolean))].slice(0, 3),
     heroProducts: products.map((product) => product.name || product.id).filter(Boolean).slice(0, 2),
     featureAngles: detectFeatureAngles(text),
+    productSpecificAngles: detectProductSpecificAngles(text),
     primaryProof: choosePrimaryProof(text),
     pricePosition: describePricePosition(averagePrice),
     usesListingEvidence: reviews.some((review) => /listing evidence/i.test(review.title || ""))
@@ -234,6 +263,7 @@ function buildMarketProfile(products, reviews) {
 }
 
 function detectFeatureAngles(text) {
+  const hasMopNegation = /no mopping|without mopping|vacuum only|no mop|不拖地|仅吸尘/.test(text);
   const angles = [
     [/lidar|laser|navigation|map|mapping|3d|地图|导航|建图/, "LiDAR/地图导航"],
     [/pa|suction|duoroller|brush|pet hair|hair|毛发|吸力|滚刷/, "强吸力/毛发清洁"],
@@ -241,6 +271,24 @@ function detectFeatureAngles(text) {
     [/self-empty|auto empty|dock|bag|station|集尘|基站/, "自动集尘/基站维护"],
     [/quiet|noise|low profile|small apartment|低噪|小户型|超薄/, "低噪音/小户型"],
     [/runtime|battery|240min|whole-home|续航|全屋/, "长续航/大户型"]
+  ];
+  return angles
+    .filter(([pattern, label]) => pattern.test(text) && !(label === "扫拖一体" && hasMopNegation))
+    .map(([, label]) => label);
+}
+
+function detectProductSpecificAngles(text) {
+  const angles = [
+    [/sonic mopping|sonic mop/, "Sonic mopping"],
+    [/hepa|allergen/, "HEPA/过敏原过滤"],
+    [/45-day|45 day|45 days|45天/, "45 天基站容量"],
+    [/60 days|60-day|8 weeks|8周|60天/, "60 天/8 周自清空"],
+    [/2\.85-inch|2\.85 inch|slim|low profile|超薄/, "超薄机身"],
+    [/edge expansion|corner rover|extendable.*brush|边角|扩展边刷/, "边角扩展刷"],
+    [/10000pa|10,000pa|10k pa/, "10000Pa 吸力"],
+    [/4000pa|4,000 pa|4000 pa/, "4000Pa 吸力"],
+    [/no mopping|vacuum only|no mop|仅吸尘|不拖地/, "仅吸尘不拖地"],
+    [/remote control|voice control|遥控|语音/, "遥控/语音控制"]
   ];
   return angles.filter(([pattern]) => pattern.test(text)).map(([, label]) => label);
 }
