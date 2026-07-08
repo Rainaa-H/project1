@@ -5,7 +5,8 @@ const DEFAULT_TIMEOUT_MS = toPositiveInt(process.env.AMAZON_REQUEST_TIMEOUT_MS, 
 
 export function validateAmazonImportRequest(request) {
   const keyword = String(request?.keyword || "").trim();
-  if (!keyword) return "keyword is required";
+  const asins = parseAsins(request?.asins);
+  if (!keyword && !asins.length) return "keyword or asins is required";
   return "";
 }
 
@@ -15,6 +16,7 @@ export async function importAmazonDataset(request, options = {}) {
 
   const client = options.client || await loadAmazonClient();
   const country = normalizeCountry(request.country || DEFAULT_COUNTRY);
+  const asins = parseAsins(request.asins);
   const maxProducts = clamp(toPositiveInt(request.maxProducts, DEFAULT_MAX_PRODUCTS), 1, DEFAULT_MAX_PRODUCTS);
   const maxReviewsPerProduct = clamp(
     toPositiveInt(request.maxReviewsPerProduct, DEFAULT_MAX_REVIEWS),
@@ -23,13 +25,22 @@ export async function importAmazonDataset(request, options = {}) {
   );
   const timeoutMs = toPositiveInt(options.timeoutMs || process.env.AMAZON_REQUEST_TIMEOUT_MS, DEFAULT_TIMEOUT_MS);
 
-  const rawProducts = unwrapAmazonResult(await withTimeout(
-    client.products({ keyword: request.keyword.trim(), country, number: maxProducts }),
-    timeoutMs,
-    "Amazon product search timed out"
-  )).slice(0, maxProducts);
+  const rawProducts = asins.length
+    ? await importProductsByAsin(client, asins.slice(0, maxProducts), country, timeoutMs)
+    : unwrapAmazonResult(await withTimeout(
+      client.products({ keyword: request.keyword.trim(), country, number: maxProducts }),
+      timeoutMs,
+      "Amazon product search timed out"
+    )).slice(0, maxProducts);
 
   const products = rawProducts.map(normalizeProduct).filter((product) => product.id && product.name);
+  if (!products.length) {
+    throw new AmazonImportError(
+      "Amazon import returned no products. Keyword search may be blocked or outdated; try importing explicit ASINs with amazon-buddy.asin().",
+      502
+    );
+  }
+
   const warnings = [];
   const reviews = [];
 
@@ -42,14 +53,19 @@ export async function importAmazonDataset(request, options = {}) {
         `Amazon reviews timed out for ${product.asin}`
       )).slice(0, maxReviewsPerProduct);
       reviews.push(...rawReviews.map((review, index) => normalizeReview(review, product, index)).filter(Boolean));
+      if (!rawReviews.length) {
+        reviews.push(...buildListingEvidenceReviews(product));
+        warnings.push(`No Amazon reviews returned for ${product.asin}; using listing title/features as analysis evidence.`);
+      }
     } catch (error) {
+      reviews.push(...buildListingEvidenceReviews(product));
       warnings.push(`Failed to import reviews for ${product.asin}: ${error.message}`);
     }
   }
 
   const group = {
-    id: `amazon-${slugify(request.keyword) || "import"}`,
-    name: `Amazon: ${request.keyword.trim()}`,
+    id: `amazon-${slugify(request.keyword || asins.join("-")) || "import"}`,
+    name: `Amazon: ${request.keyword?.trim() || asins.join(", ")}`,
     description: `Imported ${products.length} products and ${reviews.length} reviews from Amazon ${country}.`,
     productIds: products.map((product) => product.id)
   };
@@ -83,12 +99,25 @@ async function loadAmazonClient() {
   }
 }
 
+async function importProductsByAsin(client, asins, country, timeoutMs) {
+  const products = [];
+  for (const asin of asins) {
+    const rawProduct = unwrapAmazonResult(await withTimeout(
+      client.asin({ asin, country }),
+      timeoutMs,
+      `Amazon product details timed out for ${asin}`
+    ));
+    products.push(...rawProduct.map((product) => ({ ...product, asin: product.asin || asin })));
+  }
+  return products;
+}
+
 function normalizeProduct(product) {
   const asin = firstString(product.asin, product.ASIN, product.product_asin);
   const title = firstString(product.title, product.name, product.product_title);
   const price = normalizePrice(product.price, product.price_value, product.current_price, product.actual_price);
   const rating = normalizeNumber(product.reviews?.rating, product.rating, product.score, product.stars);
-  const reviewCount = normalizeNumber(
+  const reviewCount = normalizeReviewCount(
     product.reviews?.total_reviews,
     product.reviews_count,
     product.total_reviews,
@@ -126,6 +155,20 @@ function normalizeReview(review, product, index) {
     helpfulVote: normalizeNumber(review.helpful_vote, review.helpful_votes, review.helpfulVote) || 0,
     date: firstString(review.date, review.review_date, review.review_data, review.created_at)
   };
+}
+
+function buildListingEvidenceReviews(product) {
+  return [
+    {
+      productId: product.id,
+      title: "Amazon listing evidence",
+      text: [product.name, ...(product.features || [])].filter(Boolean).join(" "),
+      rating: product.rating || 0,
+      verifiedPurchase: false,
+      helpfulVote: 0,
+      date: ""
+    }
+  ].filter((review) => review.text.trim());
 }
 
 function unwrapAmazonResult(value) {
@@ -179,8 +222,21 @@ function normalizeNumber(...values) {
   return 0;
 }
 
+function normalizeReviewCount(...values) {
+  const count = normalizeNumber(...values);
+  return count > 0 && count < 10000000 ? count : 0;
+}
+
 function firstString(...values) {
   return values.find((value) => typeof value === "string" && value.trim())?.trim() || "";
+}
+
+function parseAsins(value) {
+  if (Array.isArray(value)) return value.map(String).map((item) => item.trim().toUpperCase()).filter(Boolean);
+  return String(value || "")
+    .split(/[\s,;]+/)
+    .map((item) => item.trim().toUpperCase())
+    .filter(Boolean);
 }
 
 function toPositiveInt(value, fallback) {

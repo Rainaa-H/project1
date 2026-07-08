@@ -62,7 +62,7 @@ test("POST /api/amazon/import rejects empty keywords", async () => {
 
     assert.equal(response.status, 400);
     const body = await response.json();
-    assert.equal(body.error, "keyword is required");
+    assert.equal(body.error, "keyword or asins is required");
   } finally {
     server.close();
   }

@@ -20,6 +20,7 @@ function App() {
   const [customReviews, setCustomReviews] = useState([]);
   const [amazonForm, setAmazonForm] = useState({
     keyword: "robot vacuum",
+    asins: "",
     country: "US",
     maxProducts: 10,
     maxReviewsPerProduct: 50
@@ -80,6 +81,7 @@ function App() {
     try {
       const dataset = await importAmazonDataset({
         keyword: amazonForm.keyword,
+        asins: amazonForm.asins,
         country: amazonForm.country,
         maxProducts: Number(amazonForm.maxProducts),
         maxReviewsPerProduct: Number(amazonForm.maxReviewsPerProduct)
@@ -124,6 +126,15 @@ function App() {
                 value={amazonForm.keyword}
                 onChange={(event) => setAmazonForm({ ...amazonForm, keyword: event.target.value })}
                 placeholder="robot vacuum"
+              />
+            </label>
+            <label>
+              ASINs（可选，逗号或换行分隔）
+              <textarea
+                className="asin-input"
+                value={amazonForm.asins}
+                onChange={(event) => setAmazonForm({ ...amazonForm, asins: event.target.value })}
+                placeholder="B0C7VLHMQR, B0B5RBYF8K"
               />
             </label>
             <div className="field-grid">

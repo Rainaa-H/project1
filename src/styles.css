@@ -119,6 +119,12 @@ h1 {
   width: 100%;
 }
 
+.amazon-import .asin-input {
+  margin: 0;
+  min-height: 62px;
+  padding: 9px 10px;
+}
+
 .field-grid {
   display: grid;
   gap: 8px;
