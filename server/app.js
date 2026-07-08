@@ -1,10 +1,11 @@
 import express from "express";
 import cors from "cors";
 import { sampleCompetitorGroups, sampleProducts, sampleReviews } from "../src/shared/sampleData.js";
+import { AmazonImportError, importAmazonDataset, validateAmazonImportRequest } from "./amazonImport.js";
 import { generateReport } from "./llmClient.js";
 import { validateAnalyzeRequest } from "./reportEngineDynamic.js";
 
-export function createApp() {
+export function createApp(options = {}) {
   const app = express();
   app.use(cors());
   app.use(express.json({ limit: "1mb" }));
@@ -15,6 +16,22 @@ export function createApp() {
       products: sampleProducts,
       reviews: sampleReviews
     });
+  });
+
+  app.post("/api/amazon/import", async (request, response) => {
+    const error = validateAmazonImportRequest(request.body);
+    if (error) {
+      response.status(400).json({ error });
+      return;
+    }
+
+    try {
+      const result = await importAmazonDataset(request.body, { client: options.amazonClient });
+      response.json(result);
+    } catch (error) {
+      const status = error instanceof AmazonImportError ? error.status : 500;
+      response.status(status).json({ error: error.message || "Amazon import failed" });
+    }
   });
 
   app.post("/api/analyze", async (request, response) => {

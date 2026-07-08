@@ -50,3 +50,58 @@ test("POST /api/analyze returns a fallback report when no LLM key is configured"
     server.close();
   }
 });
+
+test("POST /api/amazon/import rejects empty keywords", async () => {
+  const { server, url } = await listen(createApp());
+  try {
+    const response = await fetch(`${url}/api/amazon/import`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ keyword: "" })
+    });
+
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.equal(body.error, "keyword is required");
+  } finally {
+    server.close();
+  }
+});
+
+test("POST /api/amazon/import returns imported products and clamps limits", async () => {
+  const seen = [];
+  const amazonClient = {
+    async products(request) {
+      seen.push(["products", request]);
+      return {
+        result: [
+          { asin: "B001", title: "Robot Vacuum One", price: "$199", rating: "4.1", reviews_count: "10" },
+          { asin: "B002", title: "Robot Vacuum Two", price: "$399", rating: "4.5", reviews_count: "20" }
+        ]
+      };
+    },
+    async reviews(request) {
+      seen.push(["reviews", request]);
+      return [{ title: "Useful", body: "Useful robot vacuum.", rating: 4, verified_purchase: true }];
+    }
+  };
+  const { server, url } = await listen(createApp({ amazonClient }));
+  try {
+    const response = await fetch(`${url}/api/amazon/import`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ keyword: "robot vacuum", country: "us", maxProducts: 99, maxReviewsPerProduct: 99 })
+    });
+
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.source, "amazon-buddy");
+    assert.equal(body.products.length, 2);
+    assert.equal(body.reviews.length, 2);
+    assert.equal(body.groups[0].productIds.length, 2);
+    assert.deepEqual(seen[0], ["products", { keyword: "robot vacuum", country: "US", number: 10 }]);
+    assert.deepEqual(seen[1], ["reviews", { asin: "B001", country: "US", number: 50 }]);
+  } finally {
+    server.close();
+  }
+});

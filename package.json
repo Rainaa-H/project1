@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "server": "node server/index.js",
-    "test": "node test/parsers.test.js && node test/reportEngine.test.js && node test/llmClient.test.js && node test/reportFormatter.test.js && node test/staticAnalyze.test.js && node test/sampleData.test.js && node test/amazonReviewsBuilder.test.js && node test/api.test.js",
+    "test": "node test/parsers.test.js && node test/reportEngine.test.js && node test/llmClient.test.js && node test/reportFormatter.test.js && node test/staticAnalyze.test.js && node test/sampleData.test.js && node test/amazonReviewsBuilder.test.js && node test/amazonImport.test.js && node test/api.test.js",
     "build:data": "node scripts/buildRobovacDataset.mjs",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1"

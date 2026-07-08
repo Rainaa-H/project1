@@ -1,8 +1,9 @@
 import { generateFallbackReport } from "../../server/reportEngineDynamic.js";
+import { apiUrl } from "./apiClient.js";
 
 export async function analyzeReport(request, fetchImpl = fetch) {
   try {
-    const response = await fetchImpl("/api/analyze", {
+    const response = await fetchImpl(apiUrl("/api/analyze"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(request)

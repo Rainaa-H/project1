@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BarChart3, Clipboard, Copy, FileUp, Lightbulb, Loader2, Target, Upload } from "lucide-react";
+import { importAmazonDataset } from "./shared/amazonImport.js";
 import { analyzeReport } from "./shared/analyzeReport.js";
 import { parseReviewCsv, parseReviewText } from "./shared/parsers.js";
 import { formatReportAsMarkdown } from "./shared/reportFormatter.js";
@@ -8,22 +9,35 @@ import { sampleCompetitorGroups, sampleProducts, sampleReviews } from "./shared/
 import "./styles.css";
 
 function App() {
+  const [marketData, setMarketData] = useState({
+    groups: sampleCompetitorGroups,
+    products: sampleProducts,
+    reviews: sampleReviews,
+    source: "sample"
+  });
   const [selectedGroupId, setSelectedGroupId] = useState(sampleCompetitorGroups[0].id);
   const [pasteText, setPasteText] = useState("");
   const [customReviews, setCustomReviews] = useState([]);
+  const [amazonForm, setAmazonForm] = useState({
+    keyword: "robot vacuum",
+    country: "US",
+    maxProducts: 10,
+    maxReviewsPerProduct: 50
+  });
+  const [amazonState, setAmazonState] = useState({ status: "idle", error: "", warnings: [] });
   const [reportState, setReportState] = useState({ status: "idle", report: null, error: "", source: "" });
 
-  const selectedGroup = sampleCompetitorGroups.find((group) => group.id === selectedGroupId) || sampleCompetitorGroups[0];
+  const selectedGroup = marketData.groups.find((group) => group.id === selectedGroupId) || marketData.groups[0] || sampleCompetitorGroups[0];
   const selectedProducts = useMemo(
-    () => sampleProducts.filter((product) => selectedGroup.productIds.includes(product.id)),
-    [selectedGroup]
+    () => marketData.products.filter((product) => selectedGroup.productIds.includes(product.id)),
+    [marketData.products, selectedGroup]
   );
   const selectedReviews = useMemo(() => {
-    const reviewPool = customReviews.length ? customReviews : sampleReviews;
+    const reviewPool = customReviews.length ? customReviews : marketData.reviews;
     const productIds = new Set(selectedProducts.map((product) => product.id));
     const scoped = reviewPool.filter((review) => !review.productId || productIds.has(review.productId));
     return scoped.length ? scoped : reviewPool;
-  }, [customReviews, selectedProducts]);
+  }, [customReviews, marketData.reviews, selectedProducts]);
   const stats = useMemo(() => summarize(selectedProducts, selectedReviews), [selectedProducts, selectedReviews]);
 
   async function analyze() {
@@ -61,6 +75,32 @@ function App() {
     setReportState({ status: "idle", report: null, error: "", source: "" });
   }
 
+  async function handleAmazonImport() {
+    setAmazonState({ status: "loading", error: "", warnings: [] });
+    try {
+      const dataset = await importAmazonDataset({
+        keyword: amazonForm.keyword,
+        country: amazonForm.country,
+        maxProducts: Number(amazonForm.maxProducts),
+        maxReviewsPerProduct: Number(amazonForm.maxReviewsPerProduct)
+      });
+      const groups = dataset.groups?.length ? dataset.groups : sampleCompetitorGroups;
+      setMarketData({
+        groups,
+        products: dataset.products || [],
+        reviews: dataset.reviews || [],
+        source: dataset.source || "amazon-buddy"
+      });
+      setSelectedGroupId(groups[0].id);
+      setCustomReviews([]);
+      setPasteText("");
+      setReportState({ status: "idle", report: null, error: "", source: "" });
+      setAmazonState({ status: "ready", error: "", warnings: dataset.warnings || [] });
+    } catch (error) {
+      setAmazonState({ status: "error", error: error.message, warnings: [] });
+    }
+  }
+
   return (
     <main className="shell">
       <header className="topbar">
@@ -76,9 +116,58 @@ function App() {
 
       <section className="workspace">
         <aside className="panel controls" aria-label="分析输入">
+          <SectionTitle icon={<Upload size={18} />} title="Amazon 数据导入" />
+          <div className="amazon-import">
+            <label>
+              关键词
+              <input
+                value={amazonForm.keyword}
+                onChange={(event) => setAmazonForm({ ...amazonForm, keyword: event.target.value })}
+                placeholder="robot vacuum"
+              />
+            </label>
+            <div className="field-grid">
+              <label>
+                国家
+                <input
+                  value={amazonForm.country}
+                  onChange={(event) => setAmazonForm({ ...amazonForm, country: event.target.value.toUpperCase() })}
+                  maxLength={2}
+                />
+              </label>
+              <label>
+                商品
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={amazonForm.maxProducts}
+                  onChange={(event) => setAmazonForm({ ...amazonForm, maxProducts: event.target.value })}
+                />
+              </label>
+              <label>
+                评论/商品
+                <input
+                  type="number"
+                  min="1"
+                  max="50"
+                  value={amazonForm.maxReviewsPerProduct}
+                  onChange={(event) => setAmazonForm({ ...amazonForm, maxReviewsPerProduct: event.target.value })}
+                />
+              </label>
+            </div>
+            <button className="secondary-button" onClick={handleAmazonImport} disabled={amazonState.status === "loading"}>
+              {amazonState.status === "loading" ? <Loader2 className="spin" size={17} /> : <Upload size={17} />}
+              导入 Amazon 数据
+            </button>
+            <p className="hint">数据源：{marketData.source === "sample" ? "内置 Demo 样例" : marketData.source}</p>
+            {amazonState.error && <p className="error compact">{amazonState.error}</p>}
+            {amazonState.warnings.map((warning) => <p className="warning compact" key={warning}>{warning}</p>)}
+          </div>
+
           <SectionTitle icon={<Target size={18} />} title="竞品组" />
           <div className="group-list">
-            {sampleCompetitorGroups.map((group) => (
+            {marketData.groups.map((group) => (
               <button
                 className={group.id === selectedGroupId ? "group-option active" : "group-option"}
                 key={group.id}

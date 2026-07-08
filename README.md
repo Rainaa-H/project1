@@ -14,6 +14,22 @@ AI 扫地机器人竞品机会报告生成器。面向跨境电商品牌和 GTM 
 
 Open `http://127.0.0.1:5173`.
 
+## Live Amazon import
+
+The browser UI can import live Amazon product and review data through the Express API endpoint `POST /api/amazon/import`.
+
+Runtime requirements:
+
+```powershell
+pnpm add amazon-buddy@^2.2.44
+$env:AMAZON_COUNTRY = "US"
+$env:AMAZON_MAX_PRODUCTS = "10"
+$env:AMAZON_MAX_REVIEWS_PER_ASIN = "50"
+$env:AMAZON_REQUEST_TIMEOUT_MS = "30000"
+```
+
+For a deployed static frontend, set `VITE_API_BASE_URL` to the hosted Express API origin before building. GitHub Pages alone cannot run the Amazon import backend.
+
 ## Optional LLM
 
 默认无 API key 时使用 Demo fallback 报告。若使用 OpenAI 兼容 Chat Completions，可只设置 `OPENAI_API_KEY`，默认请求 `https://api.openai.com/v1/chat/completions`。
