@@ -98,8 +98,8 @@ export function generateFallbackReport(request) {
       priority,
       action
     })),
-    positioningAdvice: scenario.positioning,
-    gtmActions: scenario.actions
+    positioningAdvice: buildPositioningAdvice(scenario, products, reviews, negativeThemes, positiveThemes),
+    gtmActions: buildGtmActions(scenario, products, reviews, negativeThemes, positiveThemes)
   };
 }
 
@@ -149,6 +149,119 @@ function buildPainPoints(negativeThemes) {
     { theme: "噪音与空间占用", frequency: scoreTheme(negativeThemes, "噪音"), severity: "中", evidence: "自动集尘、自清洁基站和大体积基站容易造成打扰。", implication: "静音策略和基站尺寸需要被场景化说明。" },
     { theme: "拖地效果与边角清洁", frequency: scoreTheme(negativeThemes, "拖地"), severity: "中", evidence: "用户常质疑拖地是否有效、是否留水痕、是否遗漏边角。", implication: "拖地和边角能力必须用真实场景证明。" }
   ];
+}
+
+function buildPositioningAdvice(scenario, products, reviews, negativeThemes, positiveThemes) {
+  const profile = buildMarketProfile(products, reviews);
+  const advice = [];
+
+  if (profile.topBrands.length) {
+    advice.push(`定位不要只写“${scenario.label}”，要明确对标 ${profile.topBrands.join("、")} 等竞品，并把 ${profile.primaryProof} 作为首屏差异化证据。`);
+  }
+
+  if (profile.featureAngles.length) {
+    advice.push(`围绕“${profile.featureAngles.slice(0, 3).join(" + ")}”建立卖点组合，避免所有 ASIN 都复用同一套泛化场景话术。`);
+  }
+
+  if (profile.pricePosition) {
+    advice.push(`${profile.pricePosition}，Listing 信息层级应先解释用户为什么为这些能力付费，再展示参数。`);
+  }
+
+  if (negativeThemes.length) {
+    advice.push(`针对当前证据中出现的“${negativeThemes.map((theme) => theme.label).slice(0, 2).join("、")}”风险，把稳定性、维护成本和适用边界写成可验证承诺。`);
+  } else if (profile.usesListingEvidence) {
+    advice.push("当前 Amazon reviews 未返回真实评论，应明确标注为基于 listing evidence 的定位判断，后续补充真实评论后再校准差评痛点。");
+  }
+
+  return uniqueNonEmpty(advice).slice(0, 4).concat(scenario.positioning).slice(0, 4);
+}
+
+function buildGtmActions(scenario, products, reviews, negativeThemes, positiveThemes) {
+  const profile = buildMarketProfile(products, reviews);
+  const actions = [];
+
+  if (profile.heroProducts.length) {
+    actions.push(`为 ${profile.heroProducts.join("、")} 制作对比表：价格、核心功能、适用家庭、维护动作和不适用场景，替代笼统竞品描述。`);
+  }
+
+  if (profile.featureAngles.includes("LiDAR/地图导航")) {
+    actions.push("新增地图稳定性素材：建图速度、禁区设置、多房间路线和断点续扫，用动图或短视频证明导航不是参数堆砌。");
+  }
+
+  if (profile.featureAngles.includes("强吸力/毛发清洁")) {
+    actions.push("拍摄毛发、猫砂、碎屑三类清洁测试，并在标题或 A+ 模块里量化滚刷清理频率。");
+  }
+
+  if (profile.featureAngles.includes("扫拖一体")) {
+    actions.push("把拖地效果拆成厨房污渍、脚印、水痕控制三个场景，避免只写 vacuum and mop combo。");
+  }
+
+  if (profile.featureAngles.includes("低噪音/小户型")) {
+    actions.push("补充小户型摆放图、夜间运行噪音说明和老人/租房用户的一键清扫路径。");
+  }
+
+  if (negativeThemes.length) {
+    actions.push(`在 FAQ 中优先回应 ${negativeThemes.map((theme) => theme.label).slice(0, 2).join("、")}，用保养周期、耗材成本或售后流程降低转化阻力。`);
+  }
+
+  if (positiveThemes.length) {
+    actions.push(`把“${positiveThemes.map((theme) => theme.label).slice(0, 2).join("、")}”相关评价关键词放入广告词包和 review follow-up 标签。`);
+  }
+
+  if (profile.usesListingEvidence) {
+    actions.push("继续用 amazon-buddy ASIN 详情补齐竞品池，同时单独导入 CSV/粘贴真实评论，避免 GTM 决策只依赖 listing 文案。");
+  }
+
+  return uniqueNonEmpty(actions).slice(0, 5).concat(scenario.actions).slice(0, 5);
+}
+
+function buildMarketProfile(products, reviews) {
+  const text = [
+    ...products.flatMap((product) => [product.brand, product.name, product.category, product.segment, ...(product.features || [])]),
+    ...reviews.flatMap((review) => [review.title, review.text])
+  ].filter(Boolean).join(" ").toLowerCase();
+  const prices = products.map((product) => Number(product.price)).filter((price) => Number.isFinite(price) && price > 0);
+  const averagePrice = average(prices);
+
+  return {
+    topBrands: [...new Set(products.map((product) => product.brand).filter(Boolean))].slice(0, 3),
+    heroProducts: products.map((product) => product.name || product.id).filter(Boolean).slice(0, 2),
+    featureAngles: detectFeatureAngles(text),
+    primaryProof: choosePrimaryProof(text),
+    pricePosition: describePricePosition(averagePrice),
+    usesListingEvidence: reviews.some((review) => /listing evidence/i.test(review.title || ""))
+  };
+}
+
+function detectFeatureAngles(text) {
+  const angles = [
+    [/lidar|laser|navigation|map|mapping|3d|地图|导航|建图/, "LiDAR/地图导航"],
+    [/pa|suction|duoroller|brush|pet hair|hair|毛发|吸力|滚刷/, "强吸力/毛发清洁"],
+    [/mop|mopping|water tank|snapmop|扫拖|拖地|水箱/, "扫拖一体"],
+    [/self-empty|auto empty|dock|bag|station|集尘|基站/, "自动集尘/基站维护"],
+    [/quiet|noise|low profile|small apartment|低噪|小户型|超薄/, "低噪音/小户型"],
+    [/runtime|battery|240min|whole-home|续航|全屋/, "长续航/大户型"]
+  ];
+  return angles.filter(([pattern]) => pattern.test(text)).map(([, label]) => label);
+}
+
+function choosePrimaryProof(text) {
+  if (/lidar|map|mapping|navigation|地图|导航/.test(text)) return "导航和地图能力";
+  if (/pet hair|hair|duoroller|brush|毛发|滚刷/.test(text)) return "毛发清洁和滚刷维护";
+  if (/mop|water tank|扫拖|拖地/.test(text)) return "扫拖一体效果";
+  if (/dock|self-empty|station|基站|集尘/.test(text)) return "基站维护效率";
+  return "商品详情和用户证据";
+}
+
+function describePricePosition(averagePrice) {
+  if (!averagePrice) return "";
+  if (averagePrice >= 700) return `均价约 $${Math.round(averagePrice)}，属于高端段`;
+  if (averagePrice >= 320) return `均价约 $${Math.round(averagePrice)}，属于中端性能段`;
+  return `均价约 $${Math.round(averagePrice)}，属于入门/性价比段`;
+}
+
+function uniqueNonEmpty(items) {
+  return [...new Set(items.map((item) => String(item || "").trim()).filter(Boolean))];
 }
 
 function detectThemes(reviews) {
