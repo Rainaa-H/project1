@@ -1,7 +1,7 @@
 import { apiUrl } from "./apiClient.js";
 
 export async function importAmazonDataset(request, fetchImpl = fetch) {
-  const response = await fetchImpl(apiUrl("/api/amazon/import"), {
+  const response = await fetchImpl(await apiUrl("/api/amazon/import"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(request)

@@ -30,6 +30,16 @@ $env:AMAZON_REQUEST_TIMEOUT_MS = "30000"
 
 For a deployed static frontend, set `VITE_API_BASE_URL` to the hosted Express API origin before building. GitHub Pages alone cannot run the Amazon import backend.
 
+For GitHub Pages, the frontend also reads `config.json` at runtime:
+
+```json
+{
+  "apiBaseUrl": "https://your-render-service.onrender.com"
+}
+```
+
+Leave `apiBaseUrl` empty for local Vite proxy usage.
+
 ## Optional LLM
 
 默认无 API key 时使用 Demo fallback 报告。若使用 OpenAI 兼容 Chat Completions，可只设置 `OPENAI_API_KEY`，默认请求 `https://api.openai.com/v1/chat/completions`。
